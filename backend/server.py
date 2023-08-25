@@ -12,7 +12,7 @@ from langchain.memory import ConversationSummaryMemory
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 
-OPEN_API_KEY = "test"#"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"
+OPEN_API_KEY = "test"
 embeddings = OpenAIEmbeddings(openai_api_key=OPEN_API_KEY)
 llm = ChatOpenAI(openai_api_key=OPEN_API_KEY)
 vectorstore = Chroma("course-assist-store", embeddings)
@@ -26,8 +26,21 @@ def convertText():
     return "", 201
 
 
+@app.route("/chat", methods=["GET"])
+def chat():
+    message = request.args["message"]
+    memory = ConversationSummaryMemory(
+        llm=llm, memory_key="chat_history", return_messages=True
+    )
+    retriever = vectorstore.as_retriever()
+    qa = ConversationalRetrievalChain.from_llm(llm, retriever=retriever, memory=memory)
+    res = qa(message)
+    print("Res: ", res)
+    return res["answer"], 201
+
+
 def storeText(text):
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=0)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=60)
     all_splits = text_splitter.split_text(text)
     vectorstore.add_texts(texts=all_splits)
     print("Successfully embedded file")
