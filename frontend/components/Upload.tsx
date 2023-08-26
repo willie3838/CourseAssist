@@ -43,7 +43,12 @@ export default function Upload() {
         <input className="inline-block" type="file" onChange={changeHandler} />
       </div>
       <div>
-        <Button className="mt-2 bg-blue-500 px" size="small" variant="contained" onClick={handleUpload}>
+        <Button
+          className="mt-2 bg-blue-500 px"
+          size="small"
+          variant="contained"
+          onClick={handleUpload}
+        >
           {loading ? "Loading..." : "Upload"}
         </Button>
       </div>

@@ -5,9 +5,10 @@ import ChatBox from "./Chatbox";
 
 export default function Chat() {
   const [inputText, setInputText] = useState<string>("");
-  const [conversation, setConversation] = useState<string[]>(["hello", "test"]);
+  const [conversation, setConversation] = useState<string[]>([]);
 
   const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const chatWindowRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const handleKeyPress = (event: any) => {
@@ -26,6 +27,12 @@ export default function Chat() {
       document.removeEventListener("keydown", handleKeyPress);
     };
   }, [inputText]);
+
+  useEffect(() => {
+    if (chatWindowRef.current) {
+      chatWindowRef.current.scrollTop = chatWindowRef.current.scrollHeight;
+    }
+  }, [conversation])
 
   const inputStyles = {
     color: "white", // Change to your desired text color
@@ -60,7 +67,7 @@ export default function Chat() {
 
   return (
     <div className="flex flex-col h-full justify-center gap-2">
-      <div className="bg-blue-800 p-4 h-full rounded-md overflow-y-auto">
+      <div ref={chatWindowRef} className="bg-blue-800 p-4 h-full rounded-md overflow-y-auto">
         {conversation.length === 0
           ? "Start your conversation by sending a message!"
           : conversation.map((msg, idx) => {
