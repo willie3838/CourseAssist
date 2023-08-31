@@ -1,4 +1,7 @@
-from flask import Flask, request
+from queue import Queue, Empty
+from threading import Thread
+
+from flask import Flask, Response, request
 import PyPDF2
 from flask_cors import CORS
 
@@ -6,16 +9,29 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import Chroma
 from langchain.chat_models import ChatOpenAI
+from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 
 from langchain.agents.agent_toolkits import create_retriever_tool
 from langchain.agents.agent_toolkits import create_conversational_retrieval_agent
 
+class StreamingHandler(StreamingStdOutCallbackHandler):
+    def __init__(self, q):
+        self.q = q
+
+    def on_llm_new_token(self, token: str, **kwargs) -> None:
+        self.q.put(token)
+    
+    def on_llm_end(self, *args, **kwargs) -> None:
+        return self.q.empty()
+
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
+OPEN_API_KEY = "test"
 
-OPEN_API_KEY = "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"
+q = Queue()
+job_done = object()
 embeddings = OpenAIEmbeddings(openai_api_key=OPEN_API_KEY)
-llm = ChatOpenAI(temperature=0, openai_api_key=OPEN_API_KEY)
+llm = ChatOpenAI(streaming=True, temperature=0, openai_api_key=OPEN_API_KEY, callbacks=[StreamingHandler(q)])
 vectorstore = Chroma("course-assist-store", embeddings, persist_directory="./chroma_db")
 tools = []
 
@@ -29,6 +45,19 @@ def convertText():
 
 @app.route("/chat", methods=["GET"])
 def chat():
+    def event_stream():
+        while True:
+            try:
+                next_token = q.get()
+                if next_token is job_done:
+                    break
+                yield next_token
+            except Empty:
+                continue
+        
+        while not q.empty():
+            q.get()
+
     message = request.args["message"]
     template = f'''
     Context:
@@ -51,11 +80,11 @@ def chat():
     )
     tools = [tool]
     agent_executor = create_conversational_retrieval_agent(llm, tools, verbose=True)
-    result = agent_executor({
+    agent_executor({
         "input": template
     })
-   
-    return result["output"], 201
+
+    return Response(event_stream(), mimetype="text/event-stream")
 
 
 def storeText(text):

@@ -1,12 +1,10 @@
 import { Button, TextField } from "@mui/material";
 import { useState, useEffect, useRef } from "react";
-import axios from "axios";
 import ChatBox from "./Chatbox";
 
 export default function Chat() {
   const [inputText, setInputText] = useState<string>("");
   const [conversation, setConversation] = useState<string[]>([]);
-
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const chatWindowRef = useRef<HTMLDivElement | null>(null);
 
@@ -32,7 +30,7 @@ export default function Chat() {
     if (chatWindowRef.current) {
       chatWindowRef.current.scrollTop = chatWindowRef.current.scrollHeight;
     }
-  }, [conversation])
+  }, [conversation]);
 
   const inputStyles = {
     color: "white", // Change to your desired text color
@@ -45,15 +43,27 @@ export default function Chat() {
   };
 
   const sendMessage = async () => {
+    setConversation((prevConv) => [...prevConv, ""]);
     try {
-      axios.defaults.baseURL = "http://127.0.0.1:5000";
-      const resp = await axios.get(`/chat`, {
-        params: {
-          message: inputText,
-        },
-      });
-      console.log("RESP: ", resp);
-      setConversation((prevConv) => [...prevConv, resp.data]);
+      const response = await fetch(
+        `http://127.0.0.1:5000/chat?message=${inputText}`
+      );
+      const reader = response!.body!.getReader();
+      const decoder = new TextDecoder();
+      
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          break;
+        }
+
+        const decodedChunk = decoder.decode(value, { stream: true });
+        setConversation((prevConv) => {
+          const newConv = [...prevConv];
+          newConv[newConv.length - 1] += decodedChunk;
+          return newConv;
+        });
+      }
     } catch (err) {
       console.error("Error uploading file: ", err);
     }
@@ -67,7 +77,10 @@ export default function Chat() {
 
   return (
     <div className="flex flex-col h-full justify-center gap-2">
-      <div ref={chatWindowRef} className="bg-blue-800 p-4 h-full rounded-md overflow-y-auto">
+      <div
+        ref={chatWindowRef}
+        className="bg-blue-800 p-4 h-full rounded-md overflow-y-auto"
+      >
         {conversation.length === 0
           ? "Start your conversation by sending a message!"
           : conversation.map((msg, idx) => {
